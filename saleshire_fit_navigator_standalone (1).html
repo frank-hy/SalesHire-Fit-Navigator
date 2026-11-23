@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SalesHire Fit Navigator: Sales Recruitment Decision Tool</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React 18 & ReactDOM 18 CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <!-- Babel for inline JSX compilation -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-slate-50 font-sans antialiased">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useMemo } = React;
+
+    const ACADEMIC_SOURCES = {
+      keshavarz: {
+        citation: "Keshavarz et al. (2023)",
+        title: "How do firms value sales career paths?",
+        keyTakeaway: "Sales experience is highly transferable across industries. Frontline performance doesn't guarantee manager suitability. Internal promotion values social capital & firm-specific knowledge.",
+        color: "blue"
+      },
+      claro: {
+        citation: "Claro et al. (2023)",
+        title: "Dynamic and global drivers of salesperson effectiveness",
+        keyTakeaway: "Individual drivers (skills, aptitude, adaptability, motivation) outperform purely internal coordination. Individual/team drivers matter more in low-brand or low-resource environments.",
+        color: "emerald"
+      },
+      lam: {
+        citation: "Lam & Borgh (2021)",
+        title: "On salesperson judgment and decision making",
+        keyTakeaway: "Salespeople decide under Context, Task, and Constraints (the 3Cs). Evaluate how well candidates handle technological shifts (CRM/AI), customer complexity, and performance pressures.",
+        color: "purple"
+      }
+    };
+
+    function SalesHireNavigator() {
+      // Section 1 & 3: Role Setup & Dynamic Scenario States
+      const [hiringRole, setHiringRole] = useState('representative'); // 'representative' | 'manager'
+      const [candidateSource, setCandidateSource] = useState('external'); // 'internal' | 'external'
+      const [sellingContext, setSellingContext] = useState('B2B');
+      const [marketCompetition, setMarketCompetition] = useState('Medium'); // Low, Medium, High
+      const [brandStrength, setBrandStrength] = useState('Strong'); // Strong, Weak
+      const [resourceAvailability, setResourceAvailability] = useState('Medium'); // High, Medium, Low
+      const [customerComplexity, setCustomerComplexity] = useState('Medium'); // Low, Medium, High
+      const [techIntensity, setTechIntensity] = useState('Medium'); // Low, Medium, High
+      const [timePressure, setTimePressure] = useState('Medium'); // Low, Medium, High
+
+      // Section 2: Candidate Ratings (1 to 5)
+      const [ratings, setRatings] = useState({
+        salesExp: 3,
+        industryExp: 3,
+        firmExp: 3,
+        salesSkills: 3,
+        aptitude: 3,
+        adaptability: 3,
+        motivation: 3,
+        collaboration: 3,
+        judgment: 3,
+        techReadiness: 3,
+        leadership: 3,
+        customerComplexity: 3,
+      });
+
+      const [touchedRatings, setTouchedRatings] = useState(new Set());
+      const [feedback, setFeedback] = useState(null); // 'up' | 'down' | null
+      const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' | 'evidence' | 'interview'
+
+      const handleRate = (attribute, score) => {
+        setRatings(prev => ({ ...prev, [attribute]: score }));
+        setTouchedRatings(prev => {
+          const next = new Set(prev);
+          next.add(attribute);
+          return next;
+        });
+      };
+
+      const evaluation = useMemo(() => {
+        let weights = {};
+        if (hiringRole === 'representative') {
+          weights = {
+            salesSkillsAndAptitude: 0.30,
+            salesExp: 0.20,
+            adaptabilityAndMotivation: 0.20,
+            judgment: 0.15,
+            techReadiness: 0.10,
+            industryAndFirmExp: 0.05,
+            collaboration: 0.0,
+            leadership: 0.0,
+            customerComplexity: 0.0
+          };
+        } else {
+          weights = {
+            leadership: 0.25,
+            firmExp: 0.20,
+            judgment: 0.20,
+            collaboration: 0.15,
+            salesExp: 0.10,
+            industryAndFirmExp: 0.10,
+            salesSkillsAndAptitude: 0.0,
+            adaptabilityAndMotivation: 0.0,
+            techReadiness: 0.0,
+            customerComplexity: 0.0
+          };
+        }
+
+        let adjusted = { ...weights };
+
+        if (marketCompetition === 'High') {
+          if (hiringRole === 'representative') {
+            adjusted.salesSkillsAndAptitude += 0.06;
+            adjusted.adaptabilityAndMotivation += 0.04;
+            adjusted.judgment += 0.02;
+            adjusted.salesExp -= 0.06;
+            adjusted.industryAndFirmExp = Math.max(0.01, adjusted.industryAndFirmExp - 0.06);
+          } else {
+            adjusted.judgment += 0.05;
+            adjusted.leadership += 0.03;
+            adjusted.industryAndFirmExp = Math.max(0.02, adjusted.industryAndFirmExp - 0.08);
+          }
+        }
+
+        if (resourceAvailability === 'Low' || brandStrength === 'Weak') {
+          if (hiringRole === 'representative') {
+            adjusted.judgment += 0.05;
+            adjusted.adaptabilityAndMotivation += 0.05;
+            adjusted.salesExp -= 0.10;
+          } else {
+            adjusted.judgment += 0.05;
+            adjusted.collaboration += 0.05;
+            adjusted.firmExp = Math.max(0.05, adjusted.firmExp - 0.10);
+          }
+        }
+
+        if (techIntensity === 'High') {
+          if (hiringRole === 'representative') {
+            adjusted.techReadiness += 0.10;
+            adjusted.salesSkillsAndAptitude = Math.max(0.15, adjusted.salesSkillsAndAptitude - 0.10);
+          } else {
+            adjusted.judgment += 0.05;
+            adjusted.collaboration += 0.05;
+            adjusted.salesExp = Math.max(0.02, adjusted.salesExp - 0.10);
+          }
+        }
+
+        if (candidateSource === 'internal' && hiringRole === 'manager') {
+          adjusted.firmExp += 0.10;
+          adjusted.industryAndFirmExp = Math.max(0.02, adjusted.industryAndFirmExp - 0.05);
+          adjusted.salesExp = Math.max(0.02, adjusted.salesExp - 0.05);
+        }
+
+        const activeKeys = Object.keys(adjusted).filter(k => adjusted[k] > 0);
+        const sum = activeKeys.reduce((acc, key) => acc + adjusted[key], 0);
+        activeKeys.forEach(key => {
+          adjusted[key] = adjusted[key] / sum;
+        });
+
+        const mapVal = (val) => val * 20;
+
+        const salesSkillsAndAptitudeVal = (mapVal(ratings.salesSkills) + mapVal(ratings.aptitude)) / 2;
+        const adaptabilityAndMotivationVal = (mapVal(ratings.adaptability) + mapVal(ratings.motivation)) / 2;
+        const industryAndFirmExpVal = (mapVal(ratings.industryExp) + mapVal(ratings.firmExp)) / 2;
+
+        let finalScore = 0;
+        if (hiringRole === 'representative') {
+          finalScore += (adjusted.salesSkillsAndAptitude || 0) * salesSkillsAndAptitudeVal;
+          finalScore += (adjusted.salesExp || 0) * mapVal(ratings.salesExp);
+          finalScore += (adjusted.adaptabilityAndMotivation || 0) * adaptabilityAndMotivationVal;
+          finalScore += (adjusted.judgment || 0) * mapVal(ratings.judgment);
+          finalScore += (adjusted.techReadiness || 0) * mapVal(ratings.techReadiness);
+          finalScore += (adjusted.industryAndFirmExp || 0) * industryAndFirmExpVal;
+        } else {
+          finalScore += (adjusted.leadership || 0) * mapVal(ratings.leadership);
+          finalScore += (adjusted.firmExp || 0) * mapVal(ratings.firmExp);
+          finalScore += (adjusted.judgment || 0) * mapVal(ratings.judgment);
+          finalScore += (adjusted.collaboration || 0) * mapVal(ratings.collaboration);
+          finalScore += (adjusted.salesExp || 0) * mapVal(ratings.salesExp);
+          finalScore += (adjusted.industryAndFirmExp || 0) * mapVal(ratings.industryExp);
+        }
+
+        finalScore = Math.round(finalScore);
+
+        let category = '';
+        let categoryColor = '';
+        if (finalScore >= 80) {
+          category = 'Strong Hire';
+          categoryColor = 'text-emerald-600 bg-emerald-50 border-emerald-200';
+        } else if (finalScore >= 65) {
+          category = 'Conditional Hire';
+          categoryColor = 'text-amber-600 bg-amber-50 border-amber-200';
+        } else if (finalScore >= 50) {
+          category = 'Develop Before Hiring';
+          categoryColor = 'text-orange-600 bg-orange-50 border-orange-200';
+        } else {
+          category = 'Not Recommended';
+          categoryColor = 'text-rose-600 bg-rose-50 border-rose-200';
+        }
+
+        const warningFlags = [];
+
+        if (ratings.industryExp >= 4 && ratings.salesExp <= 2) {
+          warningFlags.push({
+            paper: "Keshavarz et al. (2023)",
+            text: "The candidate has high Industry Experience but low overall Sales Occupation Experience. Beware of overvaluing narrow industry context over highly transferable core sales mastery.",
+            type: "warning"
+          });
+        }
+
+        if (hiringRole === 'manager' && (ratings.salesSkills >= 4 || ratings.aptitude >= 4) && ratings.leadership <= 2) {
+          warningFlags.push({
+            paper: "Keshavarz et al. (2023)",
+            text: "This candidate displays high individual sales skills/aptitude but weak leadership/coaching scores. Strong frontline success must not be treated as automated evidence of management fit.",
+            type: "danger"
+          });
+        }
+
+        if (sellingContext === 'Digital sales' && ratings.techReadiness <= 2) {
+          warningFlags.push({
+            paper: "Claro et al. (2023)",
+            text: "Digital sales context is active, but the candidate has low Technology Readiness. The modern tech-driven ecosystem relies heavily on digital fluency.",
+            type: "warning"
+          });
+        }
+
+        if ((customerComplexity === 'High' || timePressure === 'High') && ratings.judgment <= 2) {
+          warningFlags.push({
+            paper: "Lam & Borgh (2021)",
+            text: "Customer complexity and/or high pressure are selected, but candidate's judgment under constraints is rated poorly. Complex selling contexts lead to fast cognitive failure.",
+            type: "danger"
+          });
+        }
+
+        let bestMatch = 'Not enough evidence';
+        if (ratings.salesExp > 1 && ratings.salesSkills > 1) {
+          const salesRepPotential = (ratings.salesSkills + ratings.aptitude + ratings.motivation + ratings.salesExp) / 4;
+          const managerPotential = (ratings.leadership + ratings.collaboration + ratings.firmExp + ratings.judgment) / 4;
+          
+          if (hiringRole === 'manager' && managerPotential >= 3.5) {
+            bestMatch = 'Sales Manager';
+          } else if (salesRepPotential >= 3.0) {
+            bestMatch = 'Frontline Sales Representative';
+          } else {
+            bestMatch = 'Alternative Assignment / Mentorship';
+          }
+        }
+
+        const confidencePercent = Math.min(100, Math.round((touchedRatings.size / 12) * 100));
+
+        return {
+          finalScore,
+          category,
+          categoryColor,
+          bestMatch,
+          confidencePercent,
+          warningFlags,
+          adjustedWeights: adjusted
+        };
+      }, [hiringRole, candidateSource, sellingContext, marketCompetition, brandStrength, resourceAvailability, customerComplexity, techIntensity, timePressure, ratings, touchedRatings]);
+
+      const academicExplanation = useMemo(() => {
+        const explanations = [];
+        
+        if (hiringRole === 'manager') {
+          explanations.push({
+            title: "Manager Role Dynamics (Keshavarz et al., 2023)",
+            desc: `For this ${candidateSource} Sales Manager path, our system highlighted Leadership (${Math.round((evaluation.adjustedWeights.leadership || 0) * 100)}%) and Firm-Specific Social Capital (${Math.round((evaluation.adjustedWeights.firmExp || 0) * 100)}%). Managers possess a multiplier effect on sales squads—promoting based purely on historical high closing records is highly cautioned.`
+          });
+        } else {
+          explanations.push({
+            title: "Transferable Core Mastery (Keshavarz et al., 2023)",
+            desc: `The system dynamically prioritized Sales Occupation Experience (${Math.round((evaluation.adjustedWeights.salesExp || 0) * 100)}%) over simple Industry-specific experience (${Math.round((evaluation.adjustedWeights.industryAndFirmExp || 0) * 50)}%). Historical sales aptitude transfers beautifully; don't filter out talent just because they operated in alternative industry vertical structures.`
+          });
+        }
+
+        if (marketCompetition === 'High' || resourceAvailability === 'Low') {
+          explanations.push({
+            title: "Individual Resilience Drivers (Claro et al., 2023)",
+            desc: `In hyper-competitive or low-resource frameworks, salesperson-level drivers like Adaptability, Sales Skills, and Motivation are vital. The algorithm inflated these individual vectors since structural corporate support systems are limited.`
+          });
+        } else {
+          explanations.push({
+            title: "Standard Salesperson Drivers (Claro et al., 2023)",
+            desc: `Individual competency profiles remain the primary indicators of closing speed. Salesperson skill sets, self-motivation, and natural aptitude consistently outperform coordination workflows.`
+          });
+        }
+
+        if (timePressure === 'High' || customerComplexity === 'High' || techIntensity === 'High') {
+          explanations.push({
+            title: "The 3Cs Framework: Context, Task & Constraints (Lam & Borgh, 2021)",
+            desc: `Operating under intense multi-goal task parameters, customer complexity, or heavy CRM/AI systems. The candidate's Judgment score (${ratings.judgment}/5) under dynamic pressure tells us if they will thrive or rapidly burn out under constraints.`
+          });
+        }
+
+        return explanations;
+      }, [hiringRole, candidateSource, marketCompetition, resourceAvailability, customerComplexity, techIntensity, timePressure, evaluation.adjustedWeights, ratings.judgment]);
+
+      const { risks, actionSteps, interviewQuestions } = useMemo(() => {
+        let r = [];
+        let a = [];
+        let q = [];
+
+        if (ratings.salesExp < 3) r.push("Long onboarding and path-to-productivity duration due to lower core sales foundation.");
+        if (ratings.techReadiness < 3 && techIntensity === 'High') r.push("Possibility of tool avoidance or incorrect usage of essential forecasting systems (CRM/AI models).");
+        if (hiringRole === 'manager' && ratings.leadership < 3) r.push("Loss of top-performing frontline representatives due to inadequate sales squad coaching.");
+        if (ratings.adaptability < 3) r.push("Struggle to pivot sales pitches in response to market changes or competitor pressure.");
+        if (r.length === 0) r.push("Low systemic risks detected—candidate aligns strongly with current role parameters.");
+
+        if (evaluation.finalScore >= 80) {
+          a.push("Move rapidly to draft a competitive employment offer before other firms act.");
+          a.push("Assign them a high-value sector or critical pipeline to optimize early momentum.");
+          a.push("Establish rapid leadership-track milestones to sustain motivation.");
+        } else if (evaluation.finalScore >= 65) {
+          a.push("Initiate structured 60-day sales mentoring specifically around defined gap areas.");
+          a.push("Conduct a targeted secondary reference audit regarding pressure performance.");
+          a.push("Design custom onboarding modules highlighting firm-specific CRM workflows.");
+        } else if (evaluation.finalScore >= 50) {
+          a.push("Execute a realistic, timed sales role-play simulation mimicking high pressure.");
+          a.push("Offer a structured internship or trial period if raw drive is visible.");
+          a.push("Verify coachability using a small technical sales test.");
+        } else {
+          a.push("Decline candidacy or route to internal operations/customer service pathways.");
+          a.push("Keep resume on backup list if different, low-complexity contexts arise.");
+        }
+
+        if (hiringRole === 'representative') {
+          q.push("Can you describe a complex B2B/B2C sale where your typical process failed? How did you dynamically adapt your strategy on the fly? (Claro et al., 2023 - Adaptability)");
+          q.push("Talk about a time when you had to close a deal with very limited marketing materials, collateral, or product assets. How did you utilize personal resourcefulness to win? (Claro et al., 2023 - Resource Constraints)");
+          q.push("Walk me through how you integrate advanced tools like CRM or AI into your pipeline tracking, and how they help you manage customer complexity under deadlines. (Lam & Borgh, 2021 - Technology & Time Pressure)");
+        } else {
+          q.push("How do you manage a top-performing sales rep who refuses to document customer notes inside our CRM, without demotivating them? (Keshavarz et al., 2023 - Manager Suitability & Lam & Borgh, 2021)");
+          q.push("Explain how you would build internal social capital and collaborate across Product and Operations to support your team's complex pipeline needs. (Keshavarz et al., 2023 - Internal Social Capital)");
+          q.push("Describe your systematic strategy for coaching a struggling new hire who has poor industry background but strong fundamental sales passion. (Keshavarz et al., 2023 - Career Paths)");
+        }
+
+        return { risks: r, actionSteps: a, interviewQuestions: q };
+      }, [ratings, hiringRole, techIntensity, evaluation.finalScore]);
+
+      return (
+        <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex flex-col antialiased">
+          {/* Header Banner */}
+          <header className="bg-slate-900 text-white py-6 px-4 sm:px-8 shadow-md border-b border-slate-800">
+            <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="bg-amber-500 text-slate-900 text-xs font-bold px-2 py-0.5 rounded uppercase tracking-wider">Prototype v2.6</span>
+                  <h1 className="text-2xl font-extrabold tracking-tight">SalesHire Fit Navigator</h1>
+                </div>
+                <p className="text-slate-400 text-sm">
+                  Sales Recruitment Decision Framework rooted in peer-reviewed organizational sales research.
+                </p>
+              </div>
+              
+              <nav className="flex bg-slate-800 p-1 rounded-lg self-stretch md:self-auto">
+                <button
+                  onClick={() => setActiveTab('dashboard')}
+                  className={`flex-1 md:flex-none px-4 py-2 text-xs font-semibold rounded-md transition-all ${
+                    activeTab === 'dashboard' ? 'bg-indigo-600 text-white shadow' : 'text-slate-300 hover:text-white'
+                  }`}
+                >
+                  Interactive Dashboard
+                </button>
+                <button
+                  onClick={() => setActiveTab('evidence')}
+                  className={`flex-1 md:flex-none px-4 py-2 text-xs font-semibold rounded-md transition-all ${
+                    activeTab === 'evidence' ? 'bg-indigo-600 text-white shadow' : 'text-slate-300 hover:text-white'
+                  }`}
+                >
+                  Academic Evidence Base
+                </button>
+                <button
+                  onClick={() => setActiveTab('interview')}
+                  className={`flex-1 md:flex-none px-4 py-2 text-xs font-semibold rounded-md transition-all ${
+                    activeTab === 'interview' ? 'bg-indigo-600 text-white shadow' : 'text-slate-300 hover:text-white'
+                  }`}
+                >
+                  Structured Interview Guide
+                </button>
+              </nav>
+            </div>
+          </header>
+
+          <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col gap-6">
+            
+            {activeTab === 'dashboard' && (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                
+                {/* Left Hand: Controls */}
+                <div className="lg:col-span-7 flex flex-col gap-6">
+                  
+                  {/* Card 1: Role Setup */}
+                  <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 sm:p-6 transition-all hover:shadow-md">
+                    <div className="flex items-center gap-2 mb-4 border-b border-slate-100 pb-3">
+                      <div className="p-1.5 bg-indigo-50 rounded text-indigo-600 font-bold">1</div>
+                      <div>
+                        <h2 className="font-bold text-slate-900 text-base">1. Role & Operational Context Setup</h2>
+                        <p className="text-xs text-slate-500">Define specific parameters of the target position</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">Hiring Target Role</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            onClick={() => setHiringRole('representative')}
+                            className={`py-2 px-3 text-xs font-semibold rounded-lg border text-center transition-all ${
+                              hiringRole === 'representative'
+                                ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-sm'
+                                : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-600'
+                            }`}
+                          >
+                            Frontline Rep
+                          </button>
+                          <button
+                            onClick={() => setHiringRole('manager')}
+                            className={`py-2 px-3 text-xs font-semibold rounded-lg border text-center transition-all ${
+                              hiringRole === 'manager'
+                                ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-sm'
+                                : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-600'
+                            }`}
+                          >
+                            Sales Manager
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1.5">Candidate Sourcing Mode</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            onClick={() => setCandidateSource('internal')}
+                            className={`py-2 px-3 text-xs font-semibold rounded-lg border text-center transition-all ${
+                              candidateSource === 'internal'
+                                ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-sm'
+                                : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-600'
+                            }`}
+                          >
+                            Internal Promotion
+                          </button>
+                          <button
+                            onClick={() => setCandidateSource('external')}
+                            className={`py-2 px-3 text-xs font-semibold rounded-lg border text-center transition-all ${
+                              candidateSource === 'external'
+                                ? 'border-indigo-600 bg-indigo-50 text-indigo-700 shadow-sm'
+                                : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-600'
+                            }`}
+                          >
+                            External Hire
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Selling Context Typology</label>
+                        <select
+                          value={sellingContext}
+                          onChange={(e) => setSellingContext(e.target.value)}
+                          className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                        >
+                          <option value="B2B">B2B (High Relationship Focus)</option>
+                          <option value="B2C">B2C (Transactional Pipeline)</option>
+                          <option value="Key account">Key Account Management</option>
+                          <option value="Field sales">Field Sales (Geographic Route)</option>
+                          <option value="Digital sales">Digital Sales (Tech Intensive)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Brand Strength Structure</label>
+                        <select
+                          value={brandStrength}
+                          onChange={(e) => setBrandStrength(e.target.value)}
+                          className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                        >
+                          <option value="Strong">Strong Brand (High Marketing Support)</option>
+                          <option value="Weak">Weak Brand (Unbranded/Tough Markets)</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card 2: Candidate Rating Assessment */}
+                  <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 sm:p-6 transition-all hover:shadow-md">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4 border-b border-slate-100 pb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 bg-emerald-50 rounded text-emerald-600 font-bold">2</div>
+                        <div>
+                          <h2 className="font-bold text-slate-900 text-base">2. Candidate Competency Assessment</h2>
+                          <p className="text-xs text-slate-500">Rate candidate alignment based on resumes & initial tests</p>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => setRatings({
+                          salesExp: 3, industryExp: 3, firmExp: 3, salesSkills: 3, aptitude: 3, 
+                          adaptability: 3, motivation: 3, collaboration: 3, judgment: 3, 
+                          techReadiness: 3, leadership: 3, customerComplexity: 3
+                        })}
+                        className="text-xs text-slate-400 hover:text-indigo-600 font-semibold"
+                      >
+                        Reset Ratings
+                      </button>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div>
+                        <h3 className="text-xs uppercase font-bold tracking-wider text-slate-400 mb-2">Experience & Career Track Factors</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-3 rounded-lg">
+                          
+                          <div>
+                            <div className="flex justify-between mb-1">
+                              <span className="text-xs font-semibold text-slate-700">Sales Experience (Years/Roles)</span>
+                              <span className="text-xs font-bold text-slate-900">{ratings.salesExp}/5</span>
+                            </div>
+                            <div className="flex gap-1.5">
+                              {[1, 2, 3, 4, 5].map((s) => (
+                                <button
+                                  key={s}
+                                  onClick={() => handleRate('salesExp', s)}
+                                  className={`flex-1 h-7 text-xs font-bold rounded-md border transition-all ${
+                                    ratings.salesExp >= s 
+                                      ? 'bg-indigo-600 border-indigo-600 text-white' 
+                                      : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-100'
+                                  }`}
+                                >
+                                  {s}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="flex justify-between mb-1">
+                              <span className="text-xs font-semibold text-slate-700">Industry-Specific Background</span>
+                              <span className="text-xs font-bold text-slate-900">{ratings.industryExp}/5</span>
+                            </div>
+                            <div className="flex gap-1.5">
+                              {[1, 2, 3, 4, 5].map((s) => (
+                                <button
+                                  key={s}
+                                  onClick={() => handleRate('industryExp', s)}
+                                  className={`flex-1 h-7 text-xs font-bold rounded-md border transition-all ${
+                                    ratings.industryExp >= s 
+                                      ? 'bg-indigo-600 border-indigo-600 text-white' 
+                                      : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-100'
+                                  }`}
+                                >
+                                  {s}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="flex justify-between mb-1">
+                              <span className="text-xs font-semibold text-slate-700">Firm-Specific Social Capital</span>
+                              <span className="text-xs font-bold text-slate-900">{ratings.firmExp}/5</span>
+                            </div>
+                            <div className="flex gap-1.5">
+                              {[1, 2, 3, 4, 5].map((s) => (
+                                <button
+                                  key={s}
+                                  onClick={() => handleRate('firmExp', s)}
+                                  className={`flex-1 h-7 text-xs font-bold rounded-md border transition-all ${
+                                    ratings.firmExp >= s 
+                                      ? 'bg-indigo-600 border-indigo-600 text-white' 
+                                      : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-100'
+                                  }`}
+                                >
+                                  {s}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="flex justify-between mb-1">
+                              <span className="text-xs font-semibold text-slate-700">Leadership & Team Development</span>
+                              <span className="text-xs font-bold text-slate-900">{ratings.leadership}/5</span>
+                            </div>
+                            <div className="flex gap-1.5">
+                              {[1, 2, 3, 4, 5].map((s) => (
+                                <button
+                                  key={s}
+                                  onClick={() => handleRate('leadership', s)}
+                                  className={`flex-1 h-7 text-xs font-bold rounded-md border transition-all ${
+                                    ratings.leadership >= s 
+                                      ? 'bg-indigo-600 border-indigo-600 text-white' 
+                                      : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-100'
+                                  }`}
+                                >
+                                  {s}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                        </div>
+                      </div>
+
+                      <div>
+                        <h3 className="text-xs uppercase font-bold tracking-wider text-slate-400 mb-2">Core Dynamic Effectiveness</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-3 rounded-lg">
+                          
+                          <div>
+                            <div className="flex justify-between mb-1">
+                              <span className="text-xs font-semibold text-slate-700">Sales Skills & Closing Mastery</span>
+                              <span className="text-xs font-bold text-slate-900">{ratings.salesSkills}/5</span>
+                            </div>
+                            <div className="flex gap-1.5">
+                              {[1, 2, 3, 4, 5].map((s) => (
+                                <button
+                                  key={s}
+                                  onClick={() => handleRate('salesSkills', s)}
+                                  className={`flex-1 h-7 text-xs font-bold rounded-md border transition-all ${
+                                    ratings.salesSkills >= s 
+                                      ? 'bg-emerald-600 border-emerald-600 text-white' 
+                                      : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-100'
+                                  }`}
+                                >
+                                  {s}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="flex justify-between mb-1">
+                              <span className="text-xs font-semibold text-slate-700">Selling Aptitude & Talent</span>
+                              <span className="text-xs font-bold text-slate-900">{ratings.aptitude}/5</span>
+                            </div>
+                            <div className="flex gap-1.5">
+                              {[1, 2, 3, 4, 5].map((s) => (
+                                <button
+                                  key={s}
+                                  onClick={() => handleRate('aptitude', s)}
+                                  className={`flex-1 h-7 text-xs font-bold rounded-md border transition-all ${
+                                    ratings.aptitude >= s 
+                                      ? 'bg-emerald-600 border-emerald-600 text-white' 
+                                      : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-100'
+                                  }`}
+                                >
+                                  {s}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="flex justify-between mb-1">
+                              <span className="text-xs font-semibold text-slate-700">Adaptability to Market Shifts</span>
+                              <span className="text-xs font-bold text-slate-900">{ratings.adaptability}/5</span>
+                            </div>
+                            <div className="flex gap-1.5">
+                              {[1, 2, 3, 4, 5].map((s) => (
+                                <button
+                                  key={s}
+                                  onClick={() => handleRate('adaptability', s)}
+                                  className={`flex-1 h-7 text-xs font-bold rounded-md border transition-all ${
+                                    ratings.adaptability >= s 
+                                      ? 'bg-emerald-600 border-emerald-600 text-white' 
+                                      : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-100'
+                                  }`}
+                                >
+                                  {s}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="flex justify-between mb-1">
+                              <span className="text-xs font-semibold text-slate-700">Motivation & Self-Drive</span>
+                              <span className="text-xs font-bold text-slate-900">{ratings.motivation}/5</span>
+                            </div>
+                            <div className="flex gap-1.5">
+                              {[1, 2, 3, 4, 5].map((s) => (
+                                <button
+                                  key={s}
+                                  onClick={() => handleRate('motivation', s)}
+                                  className={`flex-1 h-7 text-xs font-bold rounded-md border transition-all ${
+                                    ratings.motivation >= s 
+                                      ? 'bg-emerald-600 border-emerald-600 text-white' 
+                                      : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-100'
+                                  }`}
+                                >
+                                  {s}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                        </div>
+                      </div>
+
+                      <div>
+                        <h3 className="text-xs uppercase font-bold tracking-wider text-slate-400 mb-2">Judgment & Constraint Controls</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-3 rounded-lg">
+                          
+                          <div>
+                            <div className="flex justify-between mb-1">
+                              <span className="text-xs font-semibold text-slate-700">Judgment Under Pressure</span>
+                              <span className="text-xs font-bold text-slate-900">{ratings.judgment}/5</span>
+                            </div>
+                            <div className="flex gap-1.5">
+                              {[1, 2, 3, 4, 5].map((s) => (
+                                <button
+                                  key={s}
+                                  onClick={() => handleRate('judgment', s)}
+                                  className={`flex-1 h-7 text-xs font-bold rounded-md border transition-all ${
+                                    ratings.judgment >= s 
+                                      ? 'bg-purple-600 border-purple-600 text-white' 
+                                      : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-100'
+                                  }`}
+                                >
+                                  {s}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="flex justify-between mb-1">
+                              <span className="text-xs font-semibold text-slate-700">Technology & CRM/AI Readiness</span>
+                              <span className="text-xs font-bold text-slate-900">{ratings.techReadiness}/5</span>
+                            </div>
+                            <div className="flex gap-1.5">
+                              {[1, 2, 3, 4, 5].map((s) => (
+                                <button
+                                  key={s}
+                                  onClick={() => handleRate('techReadiness', s)}
+                                  className={`flex-1 h-7 text-xs font-bold rounded-md border transition-all ${
+                                    ratings.techReadiness >= s 
+                                      ? 'bg-purple-600 border-purple-600 text-white' 
+                                      : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-100'
+                                  }`}
+                                >
+                                  {s}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card 3: Scenario Modifiers */}
+                  <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-xl shadow-lg p-5 sm:p-6 border border-slate-800">
+                    <div className="flex items-center gap-2 mb-4 border-b border-slate-800 pb-3">
+                      <div className="p-1.5 bg-indigo-500/10 rounded text-indigo-400 font-bold">3</div>
+                      <div>
+                        <h2 className="font-bold text-base text-white">3. Scenario Pressure Testing Panel</h2>
+                        <p className="text-xs text-slate-400">Instantly simulate external shocks to watch weights self-optimize</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div>
+                        <div className="flex justify-between items-center mb-1">
+                          <label className="text-xs font-semibold text-slate-300">Market Competition Pressure</label>
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded ${
+                            marketCompetition === 'High' ? 'bg-rose-500/20 text-rose-300' : 'bg-slate-800 text-slate-400'
+                          }`}>{marketCompetition}</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {['Low', 'Medium', 'High'].map((lvl) => (
+                            <button
+                              key={lvl}
+                              onClick={() => setMarketCompetition(lvl)}
+                              className={`py-1 px-2 text-xs rounded transition-all ${
+                                marketCompetition === lvl 
+                                  ? 'bg-indigo-600 text-white font-bold' 
+                                  : 'bg-slate-800/60 hover:bg-slate-800 text-slate-400'
+                              }`}
+                            >
+                              {lvl}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="flex justify-between items-center mb-1">
+                          <label className="text-xs font-semibold text-slate-300">Resource Availability Status</label>
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded ${
+                            resourceAvailability === 'Low' ? 'bg-amber-500/20 text-amber-300' : 'bg-slate-800 text-slate-400'
+                          }`}>{resourceAvailability}</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {['High', 'Medium', 'Low'].map((lvl) => (
+                            <button
+                              key={lvl}
+                              onClick={() => setResourceAvailability(lvl)}
+                              className={`py-1 px-2 text-xs rounded transition-all ${
+                                resourceAvailability === lvl 
+                                  ? 'bg-indigo-600 text-white font-bold' 
+                                  : 'bg-slate-800/60 hover:bg-slate-800 text-slate-400'
+                              }`}
+                            >
+                              {lvl}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="flex justify-between items-center mb-1">
+                          <label className="text-xs font-semibold text-slate-300">CRM / AI Technology Intensity</label>
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded ${
+                            techIntensity === 'High' ? 'bg-purple-500/20 text-purple-300' : 'bg-slate-800 text-slate-400'
+                          }`}>{techIntensity}</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {['Low', 'Medium', 'High'].map((lvl) => (
+                            <button
+                              key={lvl}
+                              onClick={() => setTechIntensity(lvl)}
+                              className={`py-1 px-2 text-xs rounded transition-all ${
+                                techIntensity === lvl 
+                                  ? 'bg-indigo-600 text-white font-bold' 
+                                  : 'bg-slate-800/60 hover:bg-slate-800 text-slate-400'
+                              }`}
+                            >
+                              {lvl}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* Right Hand: Output Dashboard */}
+                <div className="lg:col-span-5 flex flex-col gap-6 lg:sticky lg:top-6">
+                  
+                  <div className="bg-white rounded-xl shadow-md border border-slate-200 p-6 flex flex-col gap-5">
+                    
+                    <div className="border-b border-slate-100 pb-3">
+                      <h2 className="font-extrabold text-slate-900 text-lg uppercase tracking-tight">Recruitment Alignment Analysis</h2>
+                      <p className="text-xs text-slate-500">Live calculating dynamic weighting structures</p>
+                    </div>
+
+                    <div className="flex flex-col items-center justify-center py-4 bg-slate-50 rounded-xl relative border border-slate-100">
+                      <div className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Candidate Fit Score</div>
+                      
+                      <div className="relative flex items-center justify-center">
+                        <svg className="w-32 h-32 transform -rotate-90">
+                          <circle cx="64" cy="64" r="54" className="stroke-slate-200 fill-none" strokeWidth="10" />
+                          <circle
+                            cx="64" cy="64" r="54"
+                            className="stroke-indigo-600 fill-none transition-all duration-500 ease-out"
+                            strokeWidth="10"
+                            strokeDasharray={339.2}
+                            strokeDashoffset={339.2 - (339.2 * evaluation.finalScore) / 100}
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                        <div className="absolute text-3xl font-black text-slate-900">
+                          {evaluation.finalScore}<span className="text-slate-400 text-base">/100</span>
+                        </div>
+                      </div>
+
+                      <div className={`mt-4 px-4 py-1.5 rounded-full text-xs font-black border tracking-wide uppercase shadow-sm ${evaluation.categoryColor}`}>
+                        {evaluation.category}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                        <span className="block text-[10px] uppercase tracking-wider text-slate-400 font-bold">Best Role Suitability</span>
+                        <span className="text-xs font-bold text-slate-950 block truncate mt-1">{evaluation.bestMatch}</span>
+                      </div>
+                      <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                        <span className="block text-[10px] uppercase tracking-wider text-slate-400 font-bold">Confidence Metrics</span>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <div className="w-full bg-slate-200 h-1.5 rounded">
+                            <div 
+                              className="bg-indigo-600 h-1.5 rounded transition-all duration-300"
+                              style={{ width: `${evaluation.confidencePercent}%` }}
+                            />
+                          </div>
+                          <span className="text-xs font-bold text-slate-950 whitespace-nowrap">{evaluation.confidencePercent}%</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {evaluation.warningFlags.length > 0 && (
+                      <div className="space-y-2">
+                        <span className="text-xs uppercase font-bold tracking-wider text-slate-400 block">Risk Warnings Detected</span>
+                        {evaluation.warningFlags.map((flag, idx) => (
+                          <div 
+                            key={idx} 
+                            className={`p-3 rounded-lg border text-xs leading-relaxed flex gap-2 items-start ${
+                              flag.type === 'danger' 
+                                ? 'bg-rose-50 border-rose-200 text-rose-800' 
+                                : 'bg-amber-50 border-amber-200 text-amber-800'
+                            }`}
+                          >
+                            <span className="text-base leading-none">⚠️</span>
+                            <div>
+                              <p className="font-bold text-[10px] uppercase tracking-wider mb-0.5">{flag.paper}</p>
+                              <p>{flag.text}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div>
+                      <span className="text-xs uppercase font-bold tracking-wider text-slate-400 block mb-2">Suggested Next Steps</span>
+                      <div className="space-y-1.5">
+                        {actionSteps.map((step, idx) => (
+                          <div key={idx} className="flex items-center gap-2 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                            <input type="checkbox" className="rounded text-indigo-600 focus:ring-indigo-500 h-4 w-4 border-slate-300" defaultChecked={idx === 0} />
+                            <span className="text-xs font-medium text-slate-700">{step}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                  </div>
+
+                  <div className="bg-rose-50 border border-rose-100 rounded-xl p-5">
+                    <h3 className="text-rose-900 font-extrabold text-xs uppercase tracking-wider mb-2">🚨 Potential Risk Log</h3>
+                    <ul className="space-y-1.5 list-disc list-inside text-rose-800 text-xs">
+                      {risks.map((risk, idx) => (
+                        <li key={idx}>{risk}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                </div>
+
+              </div>
+            )}
+
+            {activeTab === 'evidence' && (
+              <div className="space-y-6">
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                  <h2 className="text-xl font-extrabold text-slate-900 mb-2">Theoretical Grounding Index</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
+                    {Object.entries(ACADEMIC_SOURCES).map(([key, value]) => (
+                      <div key={key} className="bg-slate-50 rounded-xl p-5 border border-slate-100">
+                        <span className="text-xs font-bold text-indigo-600 block mb-1">{value.citation}</span>
+                        <h3 className="font-extrabold text-slate-900 text-sm mb-2">{value.title}</h3>
+                        <p className="text-xs text-slate-600 leading-relaxed bg-white p-3 rounded-lg border border-slate-100">{value.keyTakeaway}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'interview' && (
+              <div className="space-y-6">
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                  <h2 className="text-xl font-extrabold text-slate-900 mb-4">Customized Interview Protocol</h2>
+                  <div className="space-y-4">
+                    {interviewQuestions.map((q, idx) => (
+                      <div key={idx} className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                        <p className="text-xs font-bold text-indigo-900 mb-1">Question #{idx + 1}</p>
+                        <p className="text-sm text-slate-800 font-semibold italic">"{q}"</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+          </main>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<SalesHireNavigator />);
+  </script>
+</body>
+</html>
